@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -37,7 +37,8 @@ from app.agents.llm import OpenAIStructuredLLM, StructuredLLM
 from app.config import Settings
 from app.database.repositories import AthleteProfileRepository, TrainingPlanRepository
 from app.graph.workflow import make_llm, run_daily_plan
-from app.integrations.intervals_client import IntervalsClient, IntervalsError
+from app.integrations.intervals_client import IntervalsAuthError, IntervalsClient, IntervalsError
+from app.services import connections
 from app.services.activity_processor import ActivityProcessor
 from app.services.intervals_sync import IntervalsSyncService
 from app.services.sync_verification import SyncVerifier
@@ -54,15 +55,25 @@ class DailyPlanner:
         settings: Settings,
         sessions: async_sessionmaker[AsyncSession],
         *,
-        client_factory: Callable[[], IntervalsClient] | None = None,
+        client_factory: Callable[[str], Awaitable[IntervalsClient]] | None = None,
         llm: StructuredLLM | None = None,
         now: Callable[[], dt.datetime] | None = None,
     ) -> None:
         self._settings = settings
         self._sessions = sessions
-        self._client_factory = client_factory or (lambda: IntervalsClient.from_settings(settings))
+        # Phase 10: each athlete's own Intervals.icu credentials.
+        self._client_factory = client_factory or self._open_client
         self._llm = llm
         self._now = now or (lambda: dt.datetime.now(dt.UTC))
+
+    async def _open_client(self, slug: str) -> IntervalsClient:
+        return await connections.open_client(self._settings, self._sessions, slug)
+
+    async def _auth_failed(self, slug: str, exc: IntervalsAuthError) -> None:
+        """A revoked key: stop using it until the athlete reconnects."""
+        await connections.mark_invalid(
+            self._sessions, slug, f"Intervals.icu refused the key: {exc}"
+        )
 
     async def _today(self, slug: str) -> dt.date:
         async with self._sessions() as session:
@@ -76,10 +87,18 @@ class DailyPlanner:
         out: dict[str, Any] = {"athlete_slug": slug}
         llm = self._llm if self._llm is not None else make_llm(self._settings)
         try:
-            async with self._client_factory() as client:
+            async with await self._client_factory(slug) as client:
                 sync = await IntervalsSyncService(
                     self._sessions, client, self._settings, now=self._now
                 ).run(slug)
+                refused = [
+                    r.error
+                    for r in sync.results
+                    if (r.error or "").startswith("IntervalsAuthError")
+                ]
+                if refused:
+                    # Every request uses the same key; don't evaluate rides with it.
+                    raise IntervalsAuthError(str(refused[0]))
                 out["sync"] = {
                     "ok": sync.ok,
                     "results": {
@@ -91,7 +110,9 @@ class DailyPlanner:
                 ).run(slug, lookback_days=self._settings.activity_lookback_days)
                 out["activities"] = processed.as_dict()
         except IntervalsError as exc:
-            logger.error("poll_failed", extra={"error": str(exc)})
+            if isinstance(exc, IntervalsAuthError):
+                await self._auth_failed(slug, exc)
+            logger.error("poll_failed", extra={"athlete": slug, "error": str(exc)})
             out["error"] = f"{type(exc).__name__}: {exc}"
             return out
         finally:
@@ -152,11 +173,13 @@ class DailyPlanner:
         result["publish"] = None
         if publish and result.get("outcome") != "aborted" and result.get("plan_date"):
             try:
-                async with self._client_factory() as client:
+                async with await self._client_factory(slug) as client:
                     published = await WorkoutPublisher(
                         self._settings, self._sessions, client
                     ).publish(slug, dt.date.fromisoformat(result["plan_date"]))
                 result["publish"] = published.as_dict()
             except IntervalsError as exc:
+                if isinstance(exc, IntervalsAuthError):
+                    await self._auth_failed(slug, exc)
                 result["publish"] = {"ok": False, "status": "failed", "error": str(exc)}
         return result

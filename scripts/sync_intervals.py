@@ -22,8 +22,9 @@ from typing import Any, cast
 from app.config import AthleteSeedSettings, Settings, get_settings
 from app.database.connection import create_db_engine, create_session_factory
 from app.database.repositories import AthleteProfileRepository, SynchronizationStateRepository
-from app.integrations.intervals_client import IntervalsClient, IntervalsConfigError
+from app.integrations.intervals_client import IntervalsConfigError
 from app.logging_config import configure_logging
+from app.services import connections
 from app.services.intervals_sync import ALL_RESOURCES, IntervalsSyncService, Resource
 
 
@@ -36,8 +37,9 @@ async def sync(
 ) -> dict[str, Any]:
     engine = create_db_engine(settings, url=database_url)
     try:
-        async with IntervalsClient.from_settings(settings) as client:
-            service = IntervalsSyncService(create_session_factory(engine), client, settings)
+        sessions = create_session_factory(engine)
+        async with await connections.open_client(settings, sessions, athlete_slug) as client:
+            service = IntervalsSyncService(sessions, client, settings)
             report = await service.run(athlete_slug, resources=resources, full=full)
             return report.as_dict()
     finally:

@@ -235,9 +235,9 @@ def factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 def client(integration_settings: Settings, test_database_url: str) -> Iterator[TestClient]:
     db = test_database_url.rsplit("/", 1)[1]
     settings = integration_settings.model_copy(update={"postgres_db": db})
-    with TestClient(create_app(settings, athlete_slug="primary")) as c:
+    with TestClient(create_app(settings)) as c:
         # Login itself is covered by test_login.py; here only the data matters.
-        c.app.state.users = FakeUserStore(rider())  # type: ignore[attr-defined]
+        c.app.state.users = FakeUserStore(rider(athlete_slug="primary"))  # type: ignore[attr-defined]
         response = c.post("/login", data={"username": "rider", "password": PASSWORD})
         assert response.status_code == 200, response.text  # followed to /dashboard
         yield c

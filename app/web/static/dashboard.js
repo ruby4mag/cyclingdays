@@ -879,6 +879,8 @@
       return res.ok ? res.json() : null;
     })
     .then((s) => {
+      // Phase 10: no athlete yet, so onboarding first.
+      if (s && s.setup_required) { leaving = true; window.location.assign("account"); return; }
       const who = document.getElementById("signed-in-as");
       const avatar = document.getElementById("avatar");
       if (s && who) who.textContent = s.username;

@@ -2,12 +2,18 @@
 
 Usage (inside the app container: ``podman exec -it cycling-coach_app_1 ...``):
 
-    python -m scripts.manage_users add <username>        # asks for the password
+    python -m scripts.manage_users add <username> [--email a@b.c]   # asks for the password
+    python -m scripts.manage_users email <username> <address|->     # "-" clears it
+    python -m scripts.manage_users link <username> <athlete-slug>   # existing athlete
     python -m scripts.manage_users passwd <username>     # also ends their sessions
     python -m scripts.manage_users disable <username>    # ends their sessions
     python -m scripts.manage_users enable <username>
     python -m scripts.manage_users delete <username>
     python -m scripts.manage_users list
+
+Phase 10: a new user signs in, connects Intervals.icu and sets a goal on
+the Account page; that creates their athlete. ``link`` is only for
+athletes that already exist (e.g. the original single-user athlete).
 
 ``--password-stdin`` reads the password from standard input instead of
 prompting (for scripts). Passwords are never accepted as arguments, so they
@@ -48,8 +54,15 @@ async def run(args: argparse.Namespace) -> object:
             name = args.username
             if args.command == "add":
                 assert password is not None
-                record = await users.create_user(session, name, password)
+                record = await users.create_user(session, name, password, args.email)
                 return {"created": record.username}
+            if args.command == "email":
+                address = None if args.address == "-" else args.address
+                await users.set_email(session, name, address)
+                return {"email_set": name, "email": address}
+            if args.command == "link":
+                await users.link_athlete(session, name, args.athlete_slug)
+                return {"linked": name, "athlete": args.athlete_slug}
             if args.command == "passwd":
                 assert password is not None
                 await users.set_password(session, name, password)
@@ -70,6 +83,14 @@ def main(argv: list[str] | None = None) -> int:
         p = sub.add_parser(name)
         p.add_argument("username")
         p.add_argument("--password-stdin", action="store_true")
+        if name == "add":
+            p.add_argument("--email", default=None)
+    p = sub.add_parser("email")
+    p.add_argument("username")
+    p.add_argument("address", help='email address, or "-" to clear it')
+    p = sub.add_parser("link")
+    p.add_argument("username")
+    p.add_argument("athlete_slug")
     for name in ("enable", "disable", "delete"):
         sub.add_parser(name).add_argument("username")
     sub.add_parser("list")

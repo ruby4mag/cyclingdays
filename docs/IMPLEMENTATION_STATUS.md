@@ -11,6 +11,25 @@
 | 7 | Adaptive coaching | ✅ Approved 2026-11-05 (live ride evaluation waits for the first real ride) |
 | 8 | Dashboard | ✅ Approved 2026-11-05 (http://127.0.0.1:8010/dashboard) |
 | 9 | Production hardening | 🔶 Steps 1–2 done 2026-11-06 (email notifications, restart after reboot); the rest on hold at the user's request |
+| 10 | Multi-user coaching | 🔶 Built and deployed 2026-11-06 (v0.10.0); awaiting approval |
+
+## Phase 10 (multi-user) — acceptance criteria
+
+Requested 2026-11-06: users sign in, set goal, timeline and plan, connect
+Intervals.icu, then get the existing coaching. Details: [MULTI_USER.md](MULTI_USER.md).
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| Each login coaches its own athlete; data never crosses users | ✅ | athlete from the session only (`app/api/dashboard.py:_slug`, `app/api/account.py`); `test_multi_user.py::test_users_only_ever_see_their_own_athlete` |
+| Riders connect their own Intervals.icu account; keys stored encrypted | ✅ | `intervals_connections` (migration 0007), Fernet; key checked with `GET /athlete/{id}` first; `test_connections.py`; live: the original key moved into the DB, decrypts and works, plaintext not stored |
+| An Intervals.icu athlete can't be taken over by another account | ✅ | 409 on a second connect / athlete switch; tested, and refused live (wrong key → 422) |
+| Goal, timeline and training plan set in the web app | ✅ | Account page: objective, event date, weekly hours, week template, preview; same builder as `scripts.create_plan`; week-template rules tested |
+| Same coaching for every rider | ✅ | scheduler runs poll / daily plan / onboarding per connected athlete in their own time zone, per-athlete locks and failure isolation (`test_scheduler.py`); live: `poll:primary` ran on the stored key |
+| Emails: problems to the operator, workout summary to the rider | ✅ (code) / ⏳ (first live one at 20:00) | `JobNotifier`, `athlete_summary_message`; `magingeorge` linked to `primary` with their address |
+| Watchdog covers every athlete | ✅ | `plan_problems_from_rows` (per-athlete time zone, onboarding grace); unit-tested |
+| Onboarding UI | ✅ | `/account` checked live with a temporary user (API: setup_required, 409 before connect, cross-site 403) and screenshots (desktop light/dark, mobile; no console errors); temporary user deleted |
+| A second real rider onboarded end to end | ⏳ | needs a real second Intervals.icu account |
+| Tests and checks | ✅ | 369+ passed; ruff, ruff format, mypy strict clean |
 
 ## Phase 9 (steps 1–2) — acceptance criteria
 
@@ -227,7 +246,8 @@ reports `applied=expected=0002` and the sync runs inside the container.
 6. **FTP history** is not a separate table yet; each activity stores
    `ftp_at_activity_watts`. Revisit in Phase 3 if zone calculations need a
    dated FTP history.
-7. Repository is `git init`-ed but **nothing has been committed**.
+7. ~~Repository is `git init`-ed but nothing has been committed.~~ Pushed to
+   the private GitHub repo `ruby4mag/cyclingdays` (2026-11-06).
 8. **`podman-compose up -d --build` doesn't recreate a running container.**
    After a rebuild, use `docker compose up -d --force-recreate --no-deps app`
    (documented in the README).
@@ -394,3 +414,13 @@ reports `applied=expected=0002` and the sync runs inside the container.
     reports the missing plan and it's planned by hand
     (`scripts.plan_day --date`). Planning "today" automatically at start-up
     would close this; it changes coaching behaviour, so it needs approval.
+53. **`INTERVALS_API_KEY` / `INTERVALS_ATHLETE_ID` in `.env` are unused**
+    since Phase 10 (the key lives encrypted in `intervals_connections`).
+    Only `scripts.connect_intervals --from-env` reads them; they can be
+    removed from `.env`. `CREDENTIALS_ENCRYPTION_KEY` must be backed up.
+54. **Accounts are invite-only** (Phase 10). Self sign-up with email
+    verification, password reset by email and Intervals.icu OAuth are
+    needed before opening the app to the public.
+55. **Pre-migration backup** `coach-pre-0007.dump` (git-ignored, mode 600,
+    personal data) is in the project folder; delete it once Phase 10 is
+    approved.

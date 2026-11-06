@@ -22,6 +22,7 @@ REQUIRED_TABLES = {
     "sync_checks",
     "calendar_events",  # Phase 2: mirror of the Intervals.icu calendar
     "app_users",  # web login
+    "intervals_connections",  # Phase 10: per-athlete encrypted Intervals.icu key
 }
 
 
@@ -69,4 +70,4 @@ def test_source_payloads_use_jsonb() -> None:
 
 
 def test_migration_head_is_discoverable() -> None:
-    assert expected_head_revision() == "0006"
+    assert expected_head_revision() == "0007"

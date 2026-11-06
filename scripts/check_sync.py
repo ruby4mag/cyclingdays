@@ -23,8 +23,8 @@ from typing import Any
 
 from app.config import AthleteSeedSettings, Settings, get_settings
 from app.database.connection import create_db_engine, create_session_factory
-from app.integrations.intervals_client import IntervalsClient
 from app.logging_config import configure_logging
+from app.services import connections
 from app.services.intervals_sync import IntervalsSyncService
 from app.services.sync_verification import CONFIRMABLE, SyncVerifier
 
@@ -43,7 +43,7 @@ async def run(
         sessions = create_session_factory(engine)
         out: dict[str, Any] = {}
         if sync_first:
-            async with IntervalsClient.from_settings(settings) as client:
+            async with await connections.open_client(settings, sessions, slug) as client:
                 sync_report = await IntervalsSyncService(sessions, client, settings).run(slug)
             out["sync_ok"] = sync_report.as_dict()["ok"]
         verifier = SyncVerifier(sessions)

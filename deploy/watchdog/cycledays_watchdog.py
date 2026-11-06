@@ -10,9 +10,12 @@ after boot) and checks from the outside:
    ``cycling-coach`` exist, are running and aren't unhealthy. The scheduler's
    healthcheck is its heartbeat file, so a stuck scheduler shows up here.
 2. **API:** ``GET /health/ready`` answers 200.
-3. **Daily plan:** a ``daily_plan`` decision exists for the day that should
-   be planned by now (tomorrow once ``SCHEDULER_PLAN_TIME`` + 90 min has
-   passed, otherwise today).
+3. **Daily plans (Phase 10: every coached athlete):** for each athlete with
+   an active Intervals.icu connection and plan, a ``daily_plan`` decision
+   exists for the day that should be planned by now in *their* timezone
+   (tomorrow once ``SCHEDULER_PLAN_TIME`` + 90 min has passed, otherwise
+   today). A new athlete must get a first plan within 2 hours of setting a
+   goal.
 4. **Reboots:** after the host restarts (new ``boot_id``), one email says the
    host came back and whether the checks above pass.
 
@@ -56,10 +59,8 @@ BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
 PLAN_GRACE = dt.timedelta(minutes=90)
 THRESHOLD = 2  # runs in a row before a problem is emailed
 SUBJECT_PREFIX = "[CycleDays watchdog]"
-PSQL = (
-    'psql -X -q -At -v ON_ERROR_STOP=1 -v slug="$1" -v day="$2" '
-    '-U "$POSTGRES_USER" -d "$POSTGRES_DB"'
-)
+# The SQL is fixed text on stdin; nothing user-supplied is interpolated.
+PSQL = 'psql -X -q -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 
 Problem = Tuple[str, str, str]  # key, title, detail
 
@@ -209,45 +210,79 @@ def expected_plan_date(now_local: dt.datetime, plan_time: str) -> dt.date:
     return today + dt.timedelta(days=1) if now_local >= due else today
 
 
-def plan_problem(env: Dict[str, str], db_container: str, now: dt.datetime) -> Optional[Problem]:
-    tz = ZoneInfo(env.get("APP_TIMEZONE") or "Asia/Kolkata")
-    day = expected_plan_date(now.astimezone(tz), env.get("SCHEDULER_PLAN_TIME") or "20:00")
-    slug = env.get("ATHLETE_SLUG") or "primary"
-    # Values go in as psql variables (:'day', :'slug'), quoted by psql.
-    sql = (
-        "SELECT count(*) FROM coach.coach_decisions d "
-        "JOIN coach.athlete_profile a ON a.id = d.athlete_id "
-        "WHERE d.decision_type = 'daily_plan' AND d.decision_date = :'day' "
-        "AND a.slug = :'slug'"
-    )
-    code, out = _psql(db_container, sql, slug, day.isoformat())
+# Phase 10: every athlete with an active Intervals.icu connection and plan.
+# One row per athlete: slug | timezone | first daily-plan date ('' if none)
+# | daily-plan dates of the last 3 days (comma-separated) | plan age in minutes.
+PLANS_SQL = (
+    "SELECT a.slug, a.timezone, "
+    "COALESCE((SELECT min(d.decision_date)::text FROM coach.coach_decisions d "
+    "  WHERE d.athlete_id = a.id AND d.decision_type = 'daily_plan'), ''), "
+    "COALESCE((SELECT string_agg(DISTINCT d.decision_date::text, ',') FROM coach.coach_decisions d "
+    "  WHERE d.athlete_id = a.id AND d.decision_type = 'daily_plan' "
+    "  AND d.decision_date >= current_date - 3), ''), "
+    "floor(extract(epoch FROM now() - p.created_at) / 60)::int "
+    "FROM coach.athlete_profile a "
+    "JOIN coach.intervals_connections c ON c.athlete_id = a.id AND c.status = 'active' "
+    "JOIN coach.training_plans p ON p.athlete_id = a.id AND p.status = 'active' "
+    "ORDER BY a.id"
+)
+FIRST_PLAN_GRACE_MIN = 120  # onboarding plans within minutes; allow for retries
+
+
+def plan_problems_from_rows(
+    rows: List[List[str]], now: dt.datetime, plan_time: str
+) -> List[Problem]:
+    """Missing daily plans, one problem per athlete (pure; see PLANS_SQL)."""
+    problems: List[Problem] = []
+    for row in rows:
+        if len(row) != 5:
+            continue
+        slug, tz_name, first, recent, age = row
+        try:
+            tz = ZoneInfo(tz_name)
+        except (ValueError, KeyError):
+            tz = ZoneInfo("UTC")
+        day = expected_plan_date(now.astimezone(tz), plan_time)
+        if not first:
+            if age.isdigit() and int(age) > FIRST_PLAN_GRACE_MIN:
+                problems.append(
+                    (
+                        "plan.first." + slug,
+                        f"{slug}: no first plan since the goal was set",
+                        "Onboarding should plan within minutes. "
+                        "Check: podman logs --since 6h cycling-coach_scheduler_1",
+                    )
+                )
+            continue
+        if first > day.isoformat():
+            continue  # joined after that day; their first plan is a later day
+        if day.isoformat() in recent.split(","):
+            continue
+        problems.append(
+            (
+                "plan.missing." + slug,
+                f"{slug}: no daily plan for {day.isoformat()}",
+                "The 20:00 planning run didn't happen or didn't finish. "
+                "Check: podman logs --since 6h cycling-coach_scheduler_1",
+            )
+        )
+    return problems
+
+
+def plan_problems(env: Dict[str, str], db_container: str, now: dt.datetime) -> List[Problem]:
+    code, out = _psql(db_container, PLANS_SQL)
     if code != 0:
-        return ("plan.query", "Could not check the daily plan in the database", out.strip()[:300])
-    if out.strip() not in {"", "0"}:
-        return None
-    return (
-        "plan.missing",
-        f"No daily plan for {day.isoformat()}",
-        "The 20:00 planning run didn't happen or didn't finish. "
-        "Check: podman logs --since 6h cycling-coach_scheduler_1",
-    )
+        return [
+            ("plan.query", "Could not check the daily plans in the database", out.strip()[:300])
+        ]
+    rows = [line.split("|") for line in out.splitlines() if line.strip()]
+    return plan_problems_from_rows(rows, now, env.get("SCHEDULER_PLAN_TIME") or "20:00")
 
 
-def _psql(db_container: str, sql: str, slug: str, day: str) -> Tuple[int, str]:
+def _psql(db_container: str, sql: str) -> Tuple[int, str]:
     try:
         p = subprocess.run(
-            [
-                "podman",
-                "exec",
-                "-i",
-                db_container,
-                "sh",
-                "-c",
-                PSQL,
-                "psql",
-                slug,
-                day,
-            ],
+            ["podman", "exec", "-i", db_container, "sh", "-c", PSQL],
             input=sql + ";\n",
             capture_output=True,
             text=True,
@@ -267,9 +302,7 @@ def collect(env: Dict[str, str], now: dt.datetime) -> List[Problem]:
         if p:
             problems.append(p)
     if "db" in running:
-        p = plan_problem(env, running["db"], now)
-        if p:
-            problems.append(p)
+        problems.extend(plan_problems(env, running["db"], now))
     return problems
 
 

@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: Phase 9 steps 1–2 (2026-11-06)._
+_Last updated: Phase 10, multi-user (2026-11-06)._
 
 ## 1. System context
 
@@ -335,6 +335,26 @@ Details are in [OPERATIONS.md](OPERATIONS.md). Key decisions:
 * **Reboot restart via `podman-restart.service`**, not Quadlet or generated
   units, which would conflict with podman-compose. Podman 5's
   `should-start-on-boot` filter covers `unless-stopped`.
+
+### 3.13b Multi-user (Phase 10)
+
+Details are in [MULTI_USER.md](MULTI_USER.md). Key decisions:
+
+* **One login, one athlete.** `app_users.athlete_id` (unique). The data model
+  was already per athlete (`athlete_id` on every table), so the coaching
+  code is unchanged; only the edges changed: which athlete a request or job
+  is for, and whose credentials it uses.
+* **The athlete comes from the session, never the request.** No endpoint
+  takes a user or athlete id.
+* **Per-athlete encrypted credentials** (`intervals_connections`, Fernet with
+  `CREDENTIALS_ENCRYPTION_KEY`). `connections.open_client(slug)` is the only
+  way to get an Intervals.icu client; the `.env` key is legacy.
+* **Scheduler fans out** over connected athletes with per-athlete advisory
+  locks and a parallel limit; the daily plan is due per athlete in their own
+  time zone (minute tick instead of one cron trigger, which also gives the
+  start-up catch-up for free). A 2-minute `onboarding` job syncs and plans
+  new athletes.
+* **Invite-only** accounts; onboarding is self-service after the first sign-in.
 
 ## 4. Deployment topology
 

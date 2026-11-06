@@ -21,8 +21,8 @@ from app.agents.llm import OpenAIStructuredLLM
 from app.config import AthleteSeedSettings, Settings, get_settings
 from app.database.connection import create_db_engine, create_session_factory
 from app.graph.workflow import make_llm
-from app.integrations.intervals_client import IntervalsClient
 from app.logging_config import configure_logging
+from app.services import connections
 from app.services.activity_processor import ActivityProcessor
 from app.services.daily_planner import DailyPlanner
 
@@ -35,7 +35,7 @@ async def run(settings: Settings, slug: str, *, sync: bool) -> dict[str, Any]:
             return await DailyPlanner(settings, sessions).poll(slug)
         llm = make_llm(settings)
         try:
-            async with IntervalsClient.from_settings(settings) as client:
+            async with await connections.open_client(settings, sessions, slug) as client:
                 report = await ActivityProcessor(settings, sessions, client, llm).run(
                     slug, lookback_days=settings.activity_lookback_days
                 )

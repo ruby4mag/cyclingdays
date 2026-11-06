@@ -11,6 +11,9 @@ Pure functions plus a small in-memory tracker; no I/O.
   ``repeat`` while it lasts. When it disappears, a "resolved" line is sent.
   State lives in memory: after a restart, a lasting problem is emailed once
   more, which is acceptable for a restart.
+* Phase 10: problems go to the operator (``NOTIFY_EMAIL_TO``) per athlete;
+  ``athlete_summary_message`` is the daily summary for the athlete's own
+  email address.
 * ``poll_message`` / ``daily_plan_message`` build at most one email per job
   run. The daily one doubles as the daily summary ("tomorrow: …,
   published"), so a missing summary email also means something is wrong.
@@ -183,7 +186,8 @@ class AlertTracker:
 
     def update(self, scope: str, alerts: Sequence[Alert], now: dt.datetime) -> AlertUpdate:
         """Record one run of ``scope`` (a job) and say what to notify."""
-        threshold = self._thresholds.get(scope, 1)
+        # "poll:<athlete>" uses the "poll" threshold unless it has its own.
+        threshold = self._thresholds.get(scope, self._thresholds.get(scope.split(":")[0], 1))
         current = self._open.setdefault(scope, {})
         out = AlertUpdate()
         seen = {a.key for a in alerts}
@@ -318,3 +322,35 @@ def daily_plan_message(
         state = "published" if publish_status in PUBLISH_OK else (publish_status or "planned")
         subject = f"{(result or {}).get('plan_date')}: {headline} ({state})"
     return subject, "\n".join([*lines, FOOTER])
+
+
+ATHLETE_FOOTER = (
+    "Your CycleDays coach. The workout is on your Intervals.icu calendar.\n"
+    "Turn these emails off on the Account page."
+)
+
+
+def athlete_summary_message(result: Mapping[str, Any] | None) -> tuple[str, str] | None:
+    """Phase 10: the daily summary for the athlete (no operator details).
+
+    None when the run produced nothing new: it crashed (the operator gets
+    that), or it re-ran a day that was already planned and unchanged.
+    """
+    if result is None:
+        return None
+    publish_status = (result.get("publish") or {}).get("status")
+    if result.get("status") == "already_planned" and publish_status in {
+        "unchanged",
+        "rest_day",
+        None,
+    }:
+        return None
+    headline, lines = _plan_lines(result)
+    if result.get("outcome") == "aborted" or not result.get("plan_date"):
+        subject = "No workout planned for tomorrow"
+        lines.append("")
+        lines.append("The coach couldn't plan this day. The administrator has been told.")
+    else:
+        state = "on your calendar" if publish_status in PUBLISH_OK else "not published"
+        subject = f"{result.get('plan_date')}: {headline} ({state})"
+    return subject, "\n".join([*lines, "", ATHLETE_FOOTER])

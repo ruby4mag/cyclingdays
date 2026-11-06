@@ -11,3 +11,4 @@ openai==3.46.0  # official SDK, structured outputs (Phase 4)
 langgraph==1.2.20  # orchestration (Phase 4)
 langgraph-checkpoint-postgres==3.2.0  # graph persistence on psycopg 3 (Phase 4)
 apscheduler==3.11.3  # job scheduling (Phase 7); AsyncIOScheduler, 3.x stable API
+cryptography==50.0.2  # Fernet encryption of per-user Intervals.icu API keys (Phase 10)

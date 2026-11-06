@@ -588,13 +588,22 @@ class AppUser(TimestampMixin, Base):
     """A person allowed to sign in to the web app (dashboard and API).
 
     Passwords are stored as scrypt hashes only (see ``app.auth``). Users are
-    managed with ``python -m scripts.manage_users``; there's no self sign-up.
+    invited with ``python -m scripts.manage_users``; there's no self sign-up.
+
+    Phase 10: each user coaches exactly one athlete (``athlete_id``). The
+    athlete is created when the user connects Intervals.icu during
+    onboarding; every request reads data for the session's athlete only.
     """
 
     __tablename__ = "app_users"
     __table_args__ = (
         UniqueConstraint("username"),
+        UniqueConstraint("athlete_id"),
         CheckConstraint("username ~ '^[a-z0-9._-]{1,64}$'", name="username_format"),
+        CheckConstraint(
+            "email IS NULL OR email ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$'",
+            name="email_format",
+        ),
     )
 
     id: Mapped[int] = _pk()
@@ -602,3 +611,39 @@ class AppUser(TimestampMixin, Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     last_login_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    athlete_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("athlete_profile.id", ondelete="SET NULL")
+    )
+    # Daily summaries go here (problems go to the operator, NOTIFY_EMAIL_TO).
+    email: Mapped[str | None] = mapped_column(Text)
+    notify_daily_summary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+
+
+INTERVALS_CONNECTION_STATUSES = ("active", "invalid")
+
+
+class IntervalsConnection(TimestampMixin, Base):
+    """An athlete's Intervals.icu credentials (Phase 10).
+
+    The API key is encrypted with ``CREDENTIALS_ENCRYPTION_KEY`` (Fernet) and
+    only decrypted to build a client. ``invalid``: Intervals.icu refused the
+    key (401/403); the scheduler skips the athlete until they reconnect.
+    Deleting the row disconnects the athlete; their stored data stays.
+    """
+
+    __tablename__ = "intervals_connections"
+    __table_args__ = (
+        UniqueConstraint("athlete_id"),
+        UniqueConstraint("intervals_athlete_id"),
+        CheckConstraint(_in_check("status", INTERVALS_CONNECTION_STATUSES), name="status"),
+    )
+
+    id: Mapped[int] = _pk()
+    athlete_id: Mapped[int] = _athlete_fk()
+    intervals_athlete_id: Mapped[str] = mapped_column(Text, nullable=False)
+    api_key_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, server_default=text("'active'"), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_verified_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))

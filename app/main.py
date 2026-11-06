@@ -18,6 +18,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
+from app.api.account import api as account_api
+from app.api.account import pages as account_pages
 from app.api.auth import authenticate
 from app.api.auth import router as auth_router
 from app.api.dashboard import BASE_SECURITY_HEADERS, STATIC_DIR
@@ -41,8 +43,8 @@ _QUIET_PATHS = frozenset({"/health", "/health/ready"})
 _REQUEST_ID_HEADER = "X-Request-ID"
 
 
-def create_app(settings: Settings | None = None, *, athlete_slug: str | None = None) -> FastAPI:
-    """``athlete_slug``: the athlete the dashboard shows (default: ``ATHLETE_SLUG``)."""
+def create_app(settings: Settings | None = None) -> FastAPI:
+    """Each signed-in user sees their own athlete (Phase 10)."""
     settings = settings or get_settings()
     configure_logging(settings)
 
@@ -70,7 +72,6 @@ def create_app(settings: Settings | None = None, *, athlete_slug: str | None = N
 
     app = FastAPI(title="AI Cycling Coach", version=__version__, lifespan=lifespan)
     app.state.settings = settings
-    app.state.athlete_slug = athlete_slug  # None: resolved from ATHLETE_SLUG on first use
     if settings.auth_secret_key is None:
         logger.warning(
             "auth_secret_key_missing",
@@ -137,5 +138,7 @@ def create_app(settings: Settings | None = None, *, athlete_slug: str | None = N
     app.include_router(auth_router)
     app.include_router(dashboard_pages)
     app.include_router(dashboard_api)
+    app.include_router(account_pages)
+    app.include_router(account_api)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app

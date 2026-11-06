@@ -55,6 +55,10 @@ would have sent as `notification_not_sent`.
 
 ### What the scheduler sends
 
+Phase 10: problems go to the operator (`NOTIFY_EMAIL_TO`) with the athlete
+in the subject, e.g. `primary: Problem: …`. The daily summary goes to each
+rider's own address, set on the Account page ([MULTI_USER.md](MULTI_USER.md)).
+
 | Situation | Severity | When |
 |---|---|---|
 | Daily plan job crashed | error | immediately |
@@ -64,7 +68,7 @@ would have sent as `notification_not_sent`.
 | AI coach failed, fallback workout used | warning | immediately |
 | Poll crashed, Intervals.icu unreachable, a sync resource failed | error | after `NOTIFY_POLL_FAILURE_THRESHOLD` (2) failed polls in a row, so about 1 h |
 | Ride evaluations failed (retried automatically) | warning | same threshold |
-| **Daily summary**: tomorrow's workout, load, readiness, publish status | — | after each 20:00 run (`NOTIFY_DAILY_SUMMARY=true`) |
+| **Daily summary**: tomorrow's workout, load, readiness, publish status | — | after each 20:00 run (`NOTIFY_DAILY_SUMMARY=true`), to **the rider's own address** (Phase 10) |
 
 * A problem is emailed once, then again every `NOTIFY_REPEAT_HOURS` (12)
   while it lasts, and a **Resolved** email (or a "Resolved" section in the
@@ -89,9 +93,11 @@ It runs 5 minutes after boot and then every 10 minutes
    its heartbeat file (`/tmp/cycledays-scheduler.heartbeat`, touched every
    minute, unhealthy after 5 minutes), so a stuck scheduler is caught.
 2. **API**: `GET http://127.0.0.1:8010/health/ready` returns 200.
-3. **Daily plan**: a `daily_plan` decision exists for the day that should be
-   planned by now. That's tomorrow once `SCHEDULER_PLAN_TIME` + 90 min has
-   passed, otherwise today.
+3. **Daily plans** (Phase 10: every athlete with an active Intervals.icu
+   connection and a goal): a `daily_plan` decision exists for the day that
+   should be planned by now in that athlete's time zone. That's tomorrow once
+   `SCHEDULER_PLAN_TIME` + 90 min has passed, otherwise today. A new athlete
+   must get a first plan within 2 hours of setting a goal.
 4. **Host restart**: on a new boot, one email reports the host came back and
    whether the checks pass.
 

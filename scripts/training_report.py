@@ -22,8 +22,8 @@ from typing import Any
 
 from app.config import AthleteSeedSettings, Settings, get_settings
 from app.database.connection import create_db_engine, create_session_factory
-from app.integrations.intervals_client import IntervalsClient
 from app.logging_config import configure_logging
+from app.services import connections
 from app.services.intervals_sync import IntervalsSyncService
 from app.services.training_metrics import TrainingMetricsError, TrainingMetricsService
 
@@ -42,7 +42,7 @@ async def report(
         factory = create_session_factory(engine)
         result: dict[str, Any] = {}
         if sync:
-            async with IntervalsClient.from_settings(settings) as client:
+            async with await connections.open_client(settings, factory, slug) as client:
                 sync_report = await IntervalsSyncService(factory, client, settings).run(slug)
             result["sync_ok"] = sync_report.ok
         training = await TrainingMetricsService(factory).run(slug, day=day, store=store)

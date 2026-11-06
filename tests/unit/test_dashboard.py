@@ -213,7 +213,7 @@ def test_ride_evaluation_records_power_zones() -> None:
 
 @pytest.fixture
 def client() -> TestClient:
-    return signed_in_client(create_app(make_unit_settings(), athlete_slug="primary"))
+    return signed_in_client(create_app(make_unit_settings()))
 
 
 def test_root_redirects_to_dashboard(client: TestClient) -> None:

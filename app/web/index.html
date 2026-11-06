@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="same-origin">
   <title>CycleDays Coach</title>
-  <link rel="stylesheet" href="static/dashboard.css?v=0.9.0">
-  <script src="static/dashboard.js?v=0.9.0" defer></script>
+  <link rel="stylesheet" href="static/dashboard.css?v=0.10.0">
+  <script src="static/dashboard.js?v=0.10.0" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -25,6 +25,10 @@
         <button type="button" class="range" data-days="182">6M</button>
         <button type="button" class="range" data-days="364">1Y</button>
       </div>
+      <nav class="nav" aria-label="Pages">
+        <a href="dashboard" aria-current="page">Dashboard</a>
+        <a href="account">Account</a>
+      </nav>
       <form class="account" method="post" action="logout">
         <span class="avatar" id="avatar" aria-hidden="true"></span>
         <span class="who" id="signed-in-as"></span>

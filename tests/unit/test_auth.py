@@ -51,6 +51,7 @@ def rider(**changes: object) -> UserRecord:
         "username": "rider",
         "password_hash": _known_hash(),
         "is_active": True,
+        "athlete_slug": "primary",
     }
     values.update(changes)
     return UserRecord(**values)  # type: ignore[arg-type]
@@ -74,7 +75,7 @@ def store() -> FakeUserStore:
 
 @pytest.fixture
 def app(store: FakeUserStore) -> FastAPI:
-    application = create_app(make_unit_settings(auth_secret_key=SECRET), athlete_slug="primary")
+    application = create_app(make_unit_settings(auth_secret_key=SECRET))
     application.state.users = store
     return application
 
@@ -200,7 +201,11 @@ def test_login_sets_hardened_cookie_and_opens_the_app(
     assert "Max-Age=604800" in cookie
     assert store.logins == [1]
     assert anon.get("/dashboard").status_code == 200
-    assert anon.get("/api/session").json() == {"username": "rider"}
+    assert anon.get("/api/session").json() == {
+        "username": "rider",
+        "athlete": "primary",
+        "setup_required": False,
+    }
     assert anon.get("/login", follow_redirects=False).headers["location"] == "dashboard"
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "ai-cycling-coach"
-version = "0.8.0"
+version = "0.10.0"
 description = "Autonomous adaptive AI cycling coach built on Intervals.icu, LangGraph and OpenAI."
 requires-python = ">=3.12"
 readme = "README.md"

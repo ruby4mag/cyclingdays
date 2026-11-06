@@ -128,3 +128,21 @@ def test_dry_run_writes_nothing(tmp_path: Path, monkeypatch: Any) -> None:
     assert not state.exists()
     assert wd.main(["--env-file", str(tmp_path / "none"), "--state", str(state)]) == 0
     assert state.exists()
+
+
+def test_plan_problems_per_athlete_in_their_timezone() -> None:
+    # 16:30 UTC = 22:00 in Kolkata (past 20:00 + 90 min: tomorrow is due),
+    # 17:30 in Paris (still today).
+    now = dt.datetime(2026, 11, 6, 16, 30, tzinfo=dt.UTC)
+    rows = [
+        ["anna", "Asia/Kolkata", "2026-10-01", "2026-11-06,2026-11-07", "9000"],
+        ["ben", "Asia/Kolkata", "2026-10-01", "2026-11-05,2026-11-06", "9000"],
+        ["cara", "Europe/Paris", "2026-10-01", "2026-11-06", "9000"],
+        ["dev", "Asia/Kolkata", "", "", "30"],  # goal just set: onboarding pending
+        ["eve", "Asia/Kolkata", "", "", "500"],  # goal set hours ago, never planned
+        ["finn", "Asia/Kolkata", "2026-11-08", "2026-11-08", "60"],  # joined after
+        ["bad row"],
+    ]
+    problems = wd.plan_problems_from_rows(rows, now, "20:00")
+    assert [p[0] for p in problems] == ["plan.missing.ben", "plan.first.eve"]
+    assert problems[0][1] == "ben: no daily plan for 2026-11-07"

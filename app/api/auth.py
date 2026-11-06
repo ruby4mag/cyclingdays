@@ -3,7 +3,7 @@
 * ``GET  /login``        the sign-in form (``/`` and the health checks stay public).
 * ``POST /login``        checks the password; sets the session cookie; 303 to ``dashboard``.
 * ``POST /logout``       clears the cookie; 303 to ``login``.
-* ``GET  /api/session``  who is signed in (the dashboard header uses it).
+* ``GET  /api/session``  who is signed in and whether onboarding is needed.
 
 Everything else needs a valid session (see ``authenticate``): the dashboard
 page and ``/docs`` redirect to the login page, every other path answers 401.
@@ -51,7 +51,7 @@ LOGIN_HEADERS = {
 PUBLIC_PATHS = frozenset({"/", "/health", "/health/ready", "/login", "/logout"})
 PUBLIC_PREFIXES = ("/static/",)
 # Unauthenticated GETs of these get a redirect to the login page instead of 401.
-LOGIN_REDIRECT_PATHS = frozenset({"/dashboard", "/docs", "/redoc"})
+LOGIN_REDIRECT_PATHS = frozenset({"/dashboard", "/account", "/docs", "/redoc"})
 
 MAX_FORM_BYTES = 4096
 
@@ -238,4 +238,8 @@ async def session_info(request: Request) -> dict[str, Any]:
     user: UserRecord | None = request.state.user
     if user is None:  # unreachable behind the gate; kept for safety
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return {"username": user.username}
+    return {
+        "username": user.username,
+        "athlete": user.athlete_slug,
+        "setup_required": user.athlete_slug is None,
+    }

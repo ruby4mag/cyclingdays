@@ -77,7 +77,11 @@ async def test_sign_in_with_a_stored_user(
         "/login", data={"username": "rider", "password": PASSWORD}, follow_redirects=False
     )
     assert ok.status_code == 303
-    assert client.get("/api/session").json() == {"username": "rider"}
+    assert client.get("/api/session").json() == {
+        "username": "rider",
+        "athlete": None,
+        "setup_required": True,
+    }
     async with factory() as session:
         last = await session.scalar(text("SELECT last_login_at FROM coach.app_users"))
         assert last is not None

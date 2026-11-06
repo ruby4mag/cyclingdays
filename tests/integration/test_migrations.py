@@ -79,7 +79,7 @@ def test_downgrade_to_base_and_upgrade_again(scratch_db: str) -> None:
     try:
         with engine.connect() as conn:
             rev = conn.execute(text(f"SELECT version_num FROM {APP_SCHEMA}.alembic_version"))
-            assert rev.scalar_one() == "0006"
+            assert rev.scalar_one() == "0007"
     finally:
         engine.dispose()
 

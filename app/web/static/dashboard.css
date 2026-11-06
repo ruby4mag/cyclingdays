@@ -145,6 +145,15 @@ p { margin: 0; }
 .range:hover { color: var(--text-primary); }
 .range[aria-pressed="true"] { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow); }
 
+.nav { display: flex; gap: 4px; }
+.nav a {
+  color: var(--text-secondary); text-decoration: none; font-size: 13px; font-weight: 550;
+  padding: 5px 12px; border-radius: 999px;
+}
+.nav a:hover { color: var(--text-primary); background: var(--chip); }
+.nav a[aria-current="page"] { color: var(--text-primary); background: var(--chip); }
+.nav a[aria-disabled="true"] { pointer-events: none; opacity: 0.45; }
+
 .account { display: flex; align-items: center; gap: 8px; margin: 0; }
 .avatar {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;

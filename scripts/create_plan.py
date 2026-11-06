@@ -26,9 +26,10 @@ from zoneinfo import ZoneInfo
 
 from app.config import AthleteSeedSettings, Settings, get_settings
 from app.database.connection import create_db_engine, create_session_factory
-from app.database.repositories import AthleteProfileRepository, TrainingPlanRepository
+from app.database.repositories import AthleteProfileRepository
 from app.logging_config import configure_logging
-from app.training.plan_builder import PlanBuildError, build_plan
+from app.services.training_plans import Goal, PlanExistsError, create_plan
+from app.training.plan_builder import PlanBuildError
 
 
 def _hours(value: str) -> tuple[float, float]:
@@ -57,58 +58,15 @@ async def create(
             if athlete is None:
                 return {"ok": False, "error": f"athlete {slug!r} not found"}
             today = dt.datetime.now(ZoneInfo(athlete.timezone)).date()
-            plans = TrainingPlanRepository(session)
-            existing = await plans.get_active(athlete.id)
-            if existing is not None and not replace and not dry_run:
-                return {
-                    "ok": False,
-                    "error": f"active plan {existing.name!r} exists; use --replace",
-                }
+            goal = Goal(weekly_hours=hours, event_date=event_date, start=start)
             try:
-                phases = build_plan(start=start or today, weekly_hours=hours, event_date=event_date)
+                return await create_plan(
+                    session, athlete, goal, today=today, replace=replace, dry_run=dry_run
+                )
+            except PlanExistsError as exc:
+                return {"ok": False, "error": f"{exc} (use --replace)"}
             except PlanBuildError as exc:
                 return {"ok": False, "error": str(exc)}
-            lo, hi = hours
-            name = (
-                f"{athlete.primary_objective or 'Event'} on {event_date.isoformat()}"
-                if event_date
-                else f"Open-ended endurance plan ({lo:g}-{hi:g} h/week)"
-            )
-            first = min(p.start_date for p in phases.phases)
-            last = max(p.end_date for p in phases.phases)
-            out: dict[str, Any] = {
-                "ok": True,
-                "dry_run": dry_run,
-                "name": name,
-                "start_date": first.isoformat(),
-                "end_date": last.isoformat(),
-                "week_template": phases.week_template,
-                "weeks": [
-                    {
-                        "start": p.start_date.isoformat(),
-                        "name": p.name,
-                        "type": p.type,
-                        "key_session": p.key_session,
-                        "tss": p.weekly_tss_target,
-                        "minutes": p.weekly_minutes_target,
-                    }
-                    for p in phases.phases
-                ],
-            }
-            if dry_run:
-                return out
-            row = await plans.activate(
-                athlete.id,
-                name=name,
-                objective=athlete.primary_objective or "endurance",
-                start_date=first,
-                end_date=last,
-                phases=phases.model_dump(mode="json"),
-            )
-            athlete.availability = {**(athlete.availability or {}), "weekly_hours": [lo, hi]}
-            out["plan_id"] = row.id
-            out["replaced"] = None if existing is None else existing.name
-            return out
     finally:
         await engine.dispose()
 

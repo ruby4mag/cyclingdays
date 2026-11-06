@@ -25,8 +25,8 @@ from zoneinfo import ZoneInfo
 from app.config import AthleteSeedSettings, Settings, get_settings
 from app.database.connection import create_db_engine, create_session_factory
 from app.database.repositories import AthleteProfileRepository
-from app.integrations.intervals_client import IntervalsClient
 from app.logging_config import configure_logging
+from app.services import connections
 from app.services.workout_publisher import WorkoutPublisher
 
 
@@ -41,7 +41,7 @@ async def run(
                 athlete = await AthleteProfileRepository(session).get_by_slug(slug)
             tz = ZoneInfo(athlete.timezone if athlete else settings.app_timezone)
             day = dt.datetime.now(tz).date() + dt.timedelta(days=1)
-        async with IntervalsClient.from_settings(settings) as client:
+        async with await connections.open_client(settings, sessions, slug) as client:
             publisher = WorkoutPublisher(settings, sessions, client)
             if verify:
                 result = await publisher.verify(slug, day)

@@ -6,6 +6,23 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Phase 10: multi-user coaching (v0.10.0). See [docs/MULTI_USER.md](docs/MULTI_USER.md).
+  - Migration 0007: `app_users.athlete_id` (unique, `SET NULL`), `email`,
+    `notify_daily_summary`; table `intervals_connections` (encrypted API key,
+    status `active`/`invalid`).
+  - `app/services/connections.py`: Fernet encryption (`CREDENTIALS_ENCRYPTION_KEY`,
+    new dependency `cryptography`), key verification against Intervals.icu,
+    per-athlete clients (`open_client`), revoked keys marked `invalid`.
+  - Account page and API (`/account`, `/api/account/*`): setup wizard and
+    settings for the Intervals.icu connection, profile, goal (objective,
+    event date, weekly hours, week template, plan preview) and email.
+  - `app/services/training_plans.py`: goal-to-plan service shared with
+    `scripts/create_plan.py`; week-template rules.
+  - Scheduler runs every connected athlete: per-athlete locks, parallel
+    limit (`SCHEDULER_MAX_PARALLEL`), daily plan in each athlete's time zone,
+    `onboarding` job for new athletes.
+  - `scripts/connect_intervals.py`; `manage_users add --email`, `email`, `link`.
+  - Watchdog checks every coached athlete's daily plan.
 - Phase 9, steps 1–2 (the rest of Phase 9 is on hold). See
   [docs/OPERATIONS.md](docs/OPERATIONS.md).
   - Email notifications (`app/notifications.py`, standard-library SMTP with
@@ -38,6 +55,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     goes to the login page when its session ends.
 
 ### Changed
+- Phase 10: the dashboard shows the signed-in user's athlete (no more
+  `ATHLETE_SLUG` fallback; `create_app` lost its `athlete_slug` argument).
+  `/api/session` returns `athlete` and `setup_required`. Scripts use the
+  athlete's stored credentials instead of `INTERVALS_API_KEY`. Scheduler
+  problem emails go to the operator prefixed with the athlete; the daily
+  summary goes to the athlete's own email. `Notifier.send` takes `to`.
 - `docker-compose.yml`: the `scheduler` service has a healthcheck (heartbeat
   file younger than 5 minutes).
 - The scheduler logs APScheduler's per-run "Running job" lines at WARNING

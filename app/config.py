@@ -101,6 +101,13 @@ class Settings(BaseSettings):
     # automatically after planning. False = plan only (publish manually).
     intervals_publish_enabled: bool = True
 
+    # --- Multi-user (Phase 10) ------------------------------------------------
+    # Fernet key that encrypts each user's Intervals.icu API key in the
+    # database. Losing it means every user has to reconnect Intervals.icu.
+    # Generate: python -c "from cryptography.fernet import Fernet;
+    #   print(Fernet.generate_key().decode())"
+    credentials_encryption_key: SecretStr | None = None
+
     # --- Adaptive coaching / scheduler (Phase 7) --------------------------------
     # Poll Intervals.icu for new activities every N minutes (sync + evaluation).
     scheduler_poll_minutes: int = Field(default=30, ge=5, le=1440)
@@ -110,6 +117,9 @@ class Settings(BaseSettings):
     activity_lookback_days: int = Field(default=14, ge=1, le=90)
     # Extend an open-ended plan so it always covers this many days ahead.
     plan_horizon_days: int = Field(default=28, ge=7, le=180)
+    # Athletes processed at the same time by one scheduler job (each run may
+    # call the LLM and Intervals.icu).
+    scheduler_max_parallel: int = Field(default=2, ge=1, le=16)
 
     # --- OpenAI / LangGraph (Phase 4) ---------------------------------------------
     openai_api_key: SecretStr | None = None
@@ -162,6 +172,13 @@ class Settings(BaseSettings):
     @field_validator("openai_api_key", mode="before")
     @classmethod
     def _blank_openai_key_is_none(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("credentials_encryption_key", mode="before")
+    @classmethod
+    def _blank_credentials_key_is_none(cls, value: object) -> object:
         if value is None or (isinstance(value, str) and not value.strip()):
             return None
         return value.strip() if isinstance(value, str) else value

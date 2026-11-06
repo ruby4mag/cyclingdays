@@ -22,7 +22,7 @@ def test_readiness_ok_against_migrated_database(
     body = response.json()
     assert body["status"] == "ok"
     assert body["checks"]["database"]["status"] == "ok"
-    assert body["checks"]["migrations"]["data"] == {"applied": "0006", "expected": "0006"}
+    assert body["checks"]["migrations"]["data"] == {"applied": "0007", "expected": "0007"}
 
 
 async def test_seed_athlete_profile_is_idempotent(

@@ -9,8 +9,11 @@ publishes structured ERG workouts back to Intervals.icu for **icTrainer**.
 > **Status:** Phases 1–8 are approved; the dashboard is at
 > http://127.0.0.1:8010/dashboard. Phase 9 (production hardening): steps 1–2
 > (email notifications, restart after reboot) are done; the rest is on hold.
-> The scheduler service is running and publishes the next day's workout at
-> 20:00 Asia/Kolkata (`docker compose stop scheduler` pauses it). See
+> **Phase 10 (multi-user) is built and deployed, awaiting approval:** invited
+> riders sign in, connect their own Intervals.icu account, set a goal, and
+> get the same coaching ([docs/MULTI_USER.md](docs/MULTI_USER.md)).
+> The scheduler service is running and publishes each athlete's next-day
+> workout at 20:00 in their time zone (`podman-compose stop scheduler` pauses it). See
 > [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) and
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -76,6 +79,13 @@ publishes structured ERG workouts back to Intervals.icu for **icTrainer**.
 - Restart after a VM reboot through Podman's `podman-restart.service`, verified by simulation.
 - Details: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
+**Phase 10 (multi-user):**
+- Each login coaches its own athlete. Invite-only accounts (`scripts.manage_users add`).
+- Account page (`/account`): connect Intervals.icu (key checked, stored encrypted), profile, goal with event date, weekly hours and week layout (with plan preview), email preferences.
+- The scheduler coaches every connected athlete in their own time zone, with per-athlete locks and failure isolation; new athletes are synced and planned within minutes.
+- Problems go to the operator; the daily workout email goes to each rider.
+- Details: [docs/MULTI_USER.md](docs/MULTI_USER.md).
+
 ## Requirements
 
 - Python 3.12+
@@ -91,8 +101,8 @@ cp .env.example .env
 chmod 600 .env
 sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env
 #    Review the ATHLETE_* seed values in .env.
-#    Set INTERVALS_API_KEY and INTERVALS_ATHLETE_ID (e.g. i12345) from
-#    intervals.icu -> Settings -> Developer Settings. Don't swap the two.
+#    Set CREDENTIALS_ENCRYPTION_KEY (see .env.example). Riders connect
+#    Intervals.icu themselves on the Account page (docs/MULTI_USER.md).
 
 # 2. Python environment
 python3.12 -m venv .venv
@@ -206,8 +216,10 @@ and re-publishing leaves an identical event untouched. Exit codes: 0 ok,
 Open **http://127.0.0.1:8010/dashboard** while the `app` container (or
 uvicorn) is running. The page is read-only and reloads its data when you
 reload it. Sign in with a user created by
-`python -m scripts.manage_users add <username>` (in the app container:
+`python -m scripts.manage_users add <username> --email <address>` (in the app container:
 `podman exec -it cycling-coach_app_1 python -m scripts.manage_users add <username>`).
+Each user sees only their own athlete; a new user is sent to the Account
+page first ([docs/MULTI_USER.md](docs/MULTI_USER.md)).
 Set `AUTH_SECRET_KEY` in `.env` so sign-ins survive restarts. The JSON
 endpoints are listed at http://127.0.0.1:8010/docs and in
 [docs/DASHBOARD.md](docs/DASHBOARD.md).
@@ -222,8 +234,8 @@ python -m scripts.create_plan --weekly-hours 6-9 --event-date 2027-06-12 --repla
 python -m scripts.process_activities           # sync, evaluate new rides, mark missed days
 python -m scripts.process_activities --no-sync # evaluate already synced rides only
 
-docker compose up -d scheduler                 # automatic coaching (poll every 30 min, plan at 20:00)
-docker compose stop scheduler                  # pause it
+podman-compose up -d scheduler                 # automatic coaching (poll every 30 min, plan at 20:00)
+podman-compose stop scheduler                  # pause it
 ```
 
 Settings: `SCHEDULER_POLL_MINUTES`, `SCHEDULER_PLAN_TIME`,
@@ -306,8 +318,8 @@ All settings come from environment variables or `.env`. See
 | `DB_ECHO` | `false` | Log SQL |
 | `HEALTH_DB_TIMEOUT_SECONDS` | `3.0` | Readiness check timeout |
 | `RUN_MIGRATIONS_ON_START` | `true` | Container entrypoint runs `alembic upgrade head` |
-| `INTERVALS_API_KEY` | — | Secret. Basic auth with username `API_KEY` |
-| `INTERVALS_ATHLETE_ID` | — | e.g. `i780524` |
+| `CREDENTIALS_ENCRYPTION_KEY` | — | Secret, **required for multi-user**. Fernet key encrypting riders' Intervals.icu keys. Back it up |
+| `INTERVALS_API_KEY` / `INTERVALS_ATHLETE_ID` | — | Legacy single-user credentials; only read by `scripts.connect_intervals --from-env` |
 | `INTERVALS_BASE_URL` | `https://intervals.icu` | |
 | `INTERVALS_TIMEOUT_SECONDS` | `30` | per request |
 | `INTERVALS_MAX_RETRIES` | `4` | for 429, 5xx and network errors |
@@ -327,6 +339,7 @@ All settings come from environment variables or `.env`. See
 | `SCHEDULER_PLAN_TIME` | `20:00` | when tomorrow is planned (athlete timezone) |
 | `ACTIVITY_LOOKBACK_DAYS` | `14` | how far back new rides are detected |
 | `PLAN_HORIZON_DAYS` | `28` | the plan is extended to cover this many days ahead |
+| `SCHEDULER_MAX_PARALLEL` | `2` | athletes processed at once per job |
 | `ATHLETE_*` | FTP 175 W, 86 kg, 172 cm, 46 y, … | Seed values only. The DB profile is authoritative after seeding |
 
 ## Project layout
@@ -338,7 +351,8 @@ app/
   logging_config.py    structured logging
   api/routes.py        health endpoints
   api/dashboard.py     dashboard page and JSON API
-  web/                 index.html, static/dashboard.js, static/dashboard.css
+  api/account.py       account page and API (onboarding, connection, profile, goal)
+  web/                 index.html, account.html, login.html, static/ (js, css)
   database/            engine/sessions, models, repositories
   integrations/        intervals_client.py (REST client), intervals_mappers.py, intervals_workouts.py
   scheduler.py         scheduler process (python -m app.scheduler), job alerts, heartbeat
@@ -346,7 +360,8 @@ app/
   alerts.py            alert rules, tracker, email texts
   services/            intervals_sync.py, training_metrics.py, workout_publisher.py,
                        sync_verification.py, activity_processor.py, daily_planner.py,
-                       dashboard.py
+                       dashboard.py, connections.py (encrypted per-athlete Intervals.icu keys),
+                       training_plans.py (goal -> plan), users.py
   training/            zones, metrics, performance, readiness, periodization, sessions,
                        workout_generator, workout_validator, activity_dedup,
                        plan_builder, progression, adaptation, evaluation
@@ -354,11 +369,11 @@ app/
   graph/               LangGraph state, prompts, guards, fallback, routing, nodes, workflow
 migrations/            Alembic environment + versions
 scripts/               entrypoint, wait_for_db, seed_athlete_profile, sync_intervals, training_report, plan_day, publish_workout, check_sync,
-                       create_plan, process_activities, manage_users, notify_test
+                       create_plan, process_activities, manage_users, notify_test, connect_intervals
 deploy/                nginx/, systemd/ (watchdog timer), watchdog/ (host watchdog script)
 tests/unit, tests/integration
 docs/                  ARCHITECTURE.md, IMPLEMENTATION_STATUS.md, INTERVALS_ICU.md, TRAINING_ENGINE.md, COACHING_GRAPH.md, WORKOUTS.md, SYNC.md,
-                       ADAPTIVE_COACHING.md, DASHBOARD.md, OPERATIONS.md
+                       ADAPTIVE_COACHING.md, DASHBOARD.md, OPERATIONS.md, MULTI_USER.md
 ```
 
 ## Security notes

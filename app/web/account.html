@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <meta name="robots" content="noindex">
+  <title>Account · CycleDays Coach</title>
+  <link rel="stylesheet" href="static/dashboard.css?v=0.10.0">
+  <link rel="stylesheet" href="static/account.css?v=0.10.0">
+  <script src="static/account.js?v=0.10.0" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <svg class="brand-mark" width="30" height="30" viewBox="0 0 36 36" aria-hidden="true">
+          <circle class="brand-teeth" cx="18" cy="18" r="15"/>
+          <circle class="brand-ring" cx="18" cy="18" r="10"/>
+          <circle class="brand-hub" cx="18" cy="18" r="4"/>
+        </svg>
+        <span class="brand-name">CycleDays <span class="brand-sub">Coach</span></span>
+      </div>
+      <nav class="nav" aria-label="Pages">
+        <a href="dashboard" id="nav-dashboard">Dashboard</a>
+        <a href="account" aria-current="page">Account</a>
+      </nav>
+      <form class="account" method="post" action="logout">
+        <span class="avatar" id="avatar" aria-hidden="true"></span>
+        <span class="who" id="signed-in-as"></span>
+        <button type="submit" class="ghost">Sign out</button>
+      </form>
+    </div>
+  </header>
+
+  <section class="hero" aria-labelledby="hero-h">
+    <div class="hero-inner">
+      <p class="eyebrow" id="hero-eyebrow">Account</p>
+      <h1 id="hero-h">Your coach settings</h1>
+      <p class="hero-sub" id="hero-sub">Loading…</p>
+    </div>
+  </section>
+
+  <main id="main">
+    <ol class="steps" id="steps" hidden aria-label="Setup steps">
+      <li data-step="connected"><span class="step-n">1</span><span>Connect Intervals.icu</span></li>
+      <li data-step="profile"><span class="step-n">2</span><span>Your profile</span></li>
+      <li data-step="goal"><span class="step-n">3</span><span>Goal and plan</span></li>
+    </ol>
+
+    <p class="banner" id="banner" role="status" hidden></p>
+
+    <section class="card" id="card-intervals" aria-labelledby="intervals-h">
+      <h2 id="intervals-h">Intervals.icu connection</h2>
+      <p class="sub">Your rides, wellness and calendar come from Intervals.icu, and the coach puts your workouts on its calendar.</p>
+      <div class="body">
+        <div id="conn-status" class="conn-status" hidden></div>
+        <form id="form-intervals" class="form" novalidate>
+          <div class="fields two">
+            <label>Athlete ID
+              <input name="athlete_id" autocomplete="off" spellcheck="false" placeholder="i12345" required maxlength="32">
+            </label>
+            <label>API key
+              <input name="api_key" type="password" autocomplete="off" spellcheck="false" required maxlength="256">
+            </label>
+          </div>
+          <p class="hint">On <strong>intervals.icu</strong>, open <strong>Settings</strong> and scroll to <strong>Developer Settings</strong>: copy the athlete ID and the API key (generate one if there isn't any). The key is stored encrypted and only used to read your data and add workouts.</p>
+          <div class="actions">
+            <button type="submit" class="primary">Connect</button>
+            <button type="button" class="ghost" id="conn-cancel" hidden>Cancel</button>
+          </div>
+          <p class="form-msg" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" id="card-profile" aria-labelledby="profile-h">
+      <h2 id="profile-h">Athlete profile</h2>
+      <p class="sub">The coach sizes every workout from your FTP; it's prefilled from Intervals.icu when it has one.</p>
+      <div class="body">
+        <form id="form-profile" class="form" novalidate>
+          <div class="fields three">
+            <label>Name
+              <input name="display_name" required maxlength="80">
+            </label>
+            <label>FTP (watts)
+              <input name="ftp_watts" type="number" inputmode="numeric" min="1" max="600" step="1" required>
+              <span class="field-note" id="ftp-note"></span>
+            </label>
+            <label>Experience
+              <select name="experience_level" id="experience"></select>
+            </label>
+            <label>Weight (kg)
+              <input name="weight_kg" type="number" inputmode="decimal" min="21" max="250" step="0.1">
+            </label>
+            <label>Height (cm)
+              <input name="height_cm" type="number" inputmode="decimal" min="101" max="250" step="0.5">
+            </label>
+            <label>Age
+              <input name="age_years" type="number" inputmode="numeric" min="11" max="100" step="1">
+            </label>
+            <label>Time zone
+              <input name="timezone" list="timezones" required maxlength="64" spellcheck="false">
+              <datalist id="timezones"></datalist>
+            </label>
+            <label>Indoor trainer app
+              <input name="indoor_platform" maxlength="60" placeholder="e.g. icTrainer, Zwift">
+            </label>
+            <label>Watch or head unit
+              <input name="wearable" maxlength="60" placeholder="e.g. COROS, Garmin">
+            </label>
+          </div>
+          <label class="wide">Secondary objective
+            <input name="secondary_objective" maxlength="200" placeholder="e.g. FTP improvement">
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Save profile</button>
+          </div>
+          <p class="form-msg" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" id="card-goal" aria-labelledby="goal-h">
+      <h2 id="goal-h">Goal and training plan</h2>
+      <p class="sub">The long-term plan: 4-week blocks building toward your event, with peak and taper weeks before it. Each evening the coach plans the next day inside it.</p>
+      <div class="body">
+        <div id="goal-current" class="goal-current" hidden></div>
+        <form id="form-goal" class="form" novalidate>
+          <label class="wide">Objective
+            <input name="objective" required maxlength="200" placeholder="e.g. 1200 km brevet, first century, gran fondo">
+          </label>
+          <div class="fields four">
+            <label><span>Event date <span class="opt">optional</span></span>
+              <input name="event_date" type="date">
+            </label>
+            <label>Hours per week, min
+              <input name="weekly_hours_min" type="number" inputmode="decimal" min="1" max="30" step="0.5" required>
+            </label>
+            <label>Hours per week, max
+              <input name="weekly_hours_max" type="number" inputmode="decimal" min="1" max="30" step="0.5" required>
+            </label>
+            <label><span>Start <span class="opt">optional</span></span>
+              <input name="start_date" type="date">
+            </label>
+          </div>
+          <fieldset class="week">
+            <legend>Your week</legend>
+            <div class="week-grid" id="week-grid"></div>
+            <p class="hint">Key days carry the hard session; long days the longest ride. At least one rest day, at most two key days, never two key days in a row.</p>
+          </fieldset>
+          <div class="actions">
+            <button type="button" class="ghost" id="goal-preview">Preview plan</button>
+            <button type="submit" class="primary">Save goal and build plan</button>
+          </div>
+          <p class="form-msg" role="alert"></p>
+        </form>
+        <div id="goal-preview-out" class="preview" hidden></div>
+      </div>
+    </section>
+
+    <section class="card" id="card-notify" aria-labelledby="notify-h">
+      <h2 id="notify-h">Email</h2>
+      <p class="sub">After planning each evening, the coach can email you tomorrow's workout.</p>
+      <div class="body">
+        <form id="form-notify" class="form" novalidate>
+          <div class="fields two">
+            <label>Email address
+              <input name="email" type="email" autocomplete="email" maxlength="254">
+            </label>
+            <label class="check">
+              <input name="daily_summary" type="checkbox">
+              <span>Send me the daily workout email</span>
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" class="primary">Save</button>
+          </div>
+          <p class="form-msg" role="alert"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="confirm-disconnect" class="dialog">
+    <form method="dialog">
+      <h2>Disconnect Intervals.icu?</h2>
+      <p class="muted">The coach stops planning and publishing workouts for you. Your stored history stays; connect again any time.</p>
+      <div class="actions">
+        <button value="cancel" class="ghost">Keep connected</button>
+        <button value="ok" class="danger">Disconnect</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

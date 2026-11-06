@@ -9,7 +9,9 @@ All endpoints only read. The page loads no third-party code, and its CSP
 allows scripts and styles from this origin only. Personal health data is
 sent with ``Cache-Control: no-store``.
 
-Every path here needs a signed-in user (see ``app.api.auth``).
+Every path here needs a signed-in user (see ``app.api.auth``) and shows
+that user's own athlete only (Phase 10). A user who hasn't finished
+onboarding gets 409 ``setup_required``.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 
-from app.config import AthleteSeedSettings
+from app.auth import UserRecord
 from app.services.dashboard import (
     MAX_ASSESSMENTS,
     MAX_FITNESS_DAYS,
@@ -78,11 +80,11 @@ def _service(request: Request) -> DashboardService:
 
 
 def _slug(request: Request) -> str:
-    slug: str | None = request.app.state.athlete_slug
-    if slug is None:
-        slug = AthleteSeedSettings().slug
-        request.app.state.athlete_slug = slug
-    return slug
+    """The signed-in user's own athlete (Phase 10): never taken from the request."""
+    user: UserRecord | None = request.state.user
+    if user is None or user.athlete_slug is None:
+        raise HTTPException(status_code=409, detail="setup_required")
+    return user.athlete_slug
 
 
 async def _call(response: Response, coro: Any) -> dict[str, Any]:

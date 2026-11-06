@@ -187,6 +187,9 @@ class UserRecord:
     username: str
     password_hash: str
     is_active: bool
+    # Phase 10: the athlete this user coaches; None until onboarding links one.
+    athlete_id: int | None = None
+    athlete_slug: str | None = None
 
 
 class UserStore(Protocol):
