@@ -1,0 +1,13 @@
+# Runtime dependencies. Pinned for reproducible deployments.
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.2
+pydantic-settings==2.16.2
+SQLAlchemy[asyncio]==2.1.6
+psycopg[binary]==3.3.7
+alembic==1.20.1
+httpx2==2.16.0  # async HTTP client for Intervals.icu (Phase 2); also used by starlette.testclient
+openai==3.46.0  # official SDK, structured outputs (Phase 4)
+langgraph==1.2.20  # orchestration (Phase 4)
+langgraph-checkpoint-postgres==3.2.0  # graph persistence on psycopg 3 (Phase 4)
+apscheduler==3.11.3  # job scheduling (Phase 7); AsyncIOScheduler, 3.x stable API

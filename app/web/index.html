@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <title>CycleDays Coach</title>
+  <link rel="stylesheet" href="static/dashboard.css?v=0.9.0">
+  <script src="static/dashboard.js?v=0.9.0" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <svg class="brand-mark" width="30" height="30" viewBox="0 0 36 36" aria-hidden="true">
+          <circle class="brand-teeth" cx="18" cy="18" r="15"/>
+          <circle class="brand-ring" cx="18" cy="18" r="10"/>
+          <circle class="brand-hub" cx="18" cy="18" r="4"/>
+        </svg>
+        <span class="brand-name">CycleDays <span class="brand-sub">Coach</span></span>
+      </div>
+      <div class="filters" role="group" aria-label="Time range">
+        <button type="button" class="range" data-days="28">4W</button>
+        <button type="button" class="range" data-days="84" aria-pressed="true">12W</button>
+        <button type="button" class="range" data-days="182">6M</button>
+        <button type="button" class="range" data-days="364">1Y</button>
+      </div>
+      <form class="account" method="post" action="logout">
+        <span class="avatar" id="avatar" aria-hidden="true"></span>
+        <span class="who" id="signed-in-as"></span>
+        <button type="submit" class="ghost">Sign out</button>
+      </form>
+    </div>
+  </header>
+
+  <section class="hero" aria-labelledby="hero-h">
+    <svg class="hero-art" width="900" height="165" viewBox="0 0 1200 220" preserveAspectRatio="xMaxYMax slice" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <path class="hero-mtn-far" d="M380 220 L520 96 L600 150 L720 52 L840 140 L930 88 L1040 160 L1120 104 L1200 140 L1200 220 Z"/>
+      <path class="hero-mtn-near" d="M300 220 C460 150 600 178 720 160 C860 140 980 190 1200 158 L1200 220 Z"/>
+      <path class="hero-route" d="M560 206 C640 190 700 196 760 184 C820 172 860 186 920 170 C980 156 1040 166 1100 150"/>
+      <circle class="hero-dot" cx="1100" cy="150" r="5"/>
+    </svg>
+    <div class="hero-inner">
+      <p class="eyebrow">Training dashboard</p>
+      <h1 id="hero-h">Your ride today</h1>
+      <p class="hero-sub" id="athlete-line">Loading…</p>
+    </div>
+  </section>
+
+  <main id="main">
+    <section class="tiles" id="tiles" aria-label="Key numbers"></section>
+
+    <div class="grid two">
+      <section class="card" id="next-workout" aria-labelledby="next-workout-h">
+        <h2 id="next-workout-h">Upcoming workout</h2>
+        <div class="body"></div>
+      </section>
+      <section class="card" id="readiness" aria-labelledby="readiness-h">
+        <h2 id="readiness-h">Readiness</h2>
+        <div class="body"></div>
+      </section>
+    </div>
+
+    <section class="card" id="fitness" aria-labelledby="fitness-h">
+      <h2 id="fitness-h">Fitness and fatigue</h2>
+      <p class="sub">Fitness (CTL, 42-day load) and fatigue (ATL, 7-day load), TSS per day</p>
+      <div class="body"></div>
+    </section>
+
+    <section class="card" id="form" aria-labelledby="form-h">
+      <h2 id="form-h">Form</h2>
+      <p class="sub">TSB = fitness − fatigue. Above zero: fresh; below: carrying fatigue</p>
+      <div class="body"></div>
+    </section>
+
+    <div class="grid two">
+      <section class="card" id="weekly" aria-labelledby="weekly-h">
+        <h2 id="weekly-h">Weekly training volume</h2>
+        <p class="sub">TSS per week (Mon–Sun) against the plan's target</p>
+        <div class="body"></div>
+      </section>
+      <section class="card" id="zones" aria-labelledby="zones-h">
+        <h2 id="zones-h">Power zone distribution</h2>
+        <p class="sub">Share of riding time per zone</p>
+        <div class="body"></div>
+      </section>
+    </div>
+
+    <section class="card" id="calendar" aria-labelledby="calendar-h">
+      <h2 id="calendar-h">Training calendar</h2>
+      <p class="sub">Two weeks back, three weeks ahead</p>
+      <div class="body"></div>
+    </section>
+
+    <section class="card" id="workouts" aria-labelledby="workouts-h">
+      <h2 id="workouts-h">Completed workouts</h2>
+      <div class="body"></div>
+    </section>
+
+    <section class="card" id="plan" aria-labelledby="plan-h">
+      <h2 id="plan-h">Long-term objective</h2>
+      <div class="body"></div>
+    </section>
+
+    <section class="card" id="assessments" aria-labelledby="assessments-h">
+      <h2 id="assessments-h">AI coaching assessments</h2>
+      <div class="body"></div>
+    </section>
+
+    <div class="grid two">
+      <section class="card" id="profile" aria-labelledby="profile-h">
+        <h2 id="profile-h">Athlete profile</h2>
+        <div class="body"></div>
+      </section>
+      <section class="card" id="sync" aria-labelledby="sync-h">
+        <h2 id="sync-h">Data and synchronization</h2>
+        <div class="body"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+  <footer class="foot muted">Read-only view. All numbers come from the coach's database; nothing here changes the plan.</footer>
+</body>
+</html>

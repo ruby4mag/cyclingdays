@@ -1,0 +1,80 @@
+# Works with both Docker Compose v2 and podman-compose (this VM uses Podman).
+# Usage:
+#   docker compose up -d db          # database only (develop with the venv)
+#   docker compose up -d --build     # database + application + scheduler
+#   docker compose stop scheduler    # pause automatic polling and planning
+name: cycling-coach
+
+services:
+  db:
+    image: docker.io/library/postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      # Host port 5434 (5432/5433 are used by other projects on this VM). Local only.
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: localhost/cycling-coach:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Inside the compose network the database is reachable as db:5432.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8010}:8010"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8010/health/ready', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Phase 7: polls Intervals.icu (sync + ride evaluation) and plans/publishes
+  # the next day at SCHEDULER_PLAN_TIME. Same image; the app service applies
+  # migrations, so this one doesn't.
+  scheduler:
+    image: localhost/cycling-coach:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      RUN_MIGRATIONS_ON_START: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    command: ["python", "-m", "app.scheduler"]
+    # Phase 9: the scheduler touches this file every minute (app/scheduler.py).
+    # A stale file means its event loop is stuck; the host watchdog reports it.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/cycledays-scheduler.heartbeat') < 300 else 1)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  pgdata:

@@ -1,0 +1,15 @@
+# CycleDays host watchdog (Phase 9): checks containers, /health/ready and the
+# daily plan; emails problems. Triggered by cycledays-watchdog.timer.
+# Install: see docs/OPERATIONS.md ("Watchdog").
+[Unit]
+Description=CycleDays watchdog (containers, API, daily plan)
+After=network-online.target podman-restart.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/cycledays/deploy/watchdog/cycledays_watchdog.py
+StateDirectory=cycledays-watchdog
+StateDirectoryMode=0700
+TimeoutStartSec=120
+Nice=10

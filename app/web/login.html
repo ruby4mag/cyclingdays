@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <meta name="robots" content="noindex">
+  <title>Sign in · CycleDays Coach</title>
+  <link rel="stylesheet" href="static/dashboard.css?v=0.9.1">
+  <link rel="stylesheet" href="static/login.css?v=0.9.1">
+</head>
+<body>
+  <main class="login-page">
+    <section class="login-hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Adaptive endurance coaching</p>
+        <h2>Every ride, planned around how you feel today.</h2>
+        <p>Daily ERG workouts built from your fitness, fatigue and recovery, synced to Intervals.icu.</p>
+      </div>
+      <p class="photo-credit">Photo: Urban Vintage on Unsplash</p>
+    </section>
+
+    <div class="login-side">
+      <form class="login-card" method="post" action="login">
+        <div class="brand">
+          <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
+            <circle class="brand-teeth" cx="18" cy="18" r="15"/>
+            <circle class="brand-ring" cx="18" cy="18" r="10"/>
+            <circle class="brand-hub" cx="18" cy="18" r="4"/>
+          </svg>
+          <h1>CycleDays Coach</h1>
+        </div>
+        <p class="lede">Welcome back. Sign in to your training dashboard.</p>
+        {{message}}
+        <label>Username
+          <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" value="{{username}}" autofocus>
+        </label>
+        <label>Password
+          <input name="password" type="password" autocomplete="current-password" required maxlength="1024">
+        </label>
+        <button type="submit">Sign in</button>
+        <p class="login-foot">Private dashboard · your data stays on this server</p>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

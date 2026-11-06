@@ -1,0 +1,44 @@
+[project]
+name = "ai-cycling-coach"
+version = "0.8.0"
+description = "Autonomous adaptive AI cycling coach built on Intervals.icu, LangGraph and OpenAI."
+requires-python = ">=3.12"
+readme = "README.md"
+
+# Dependencies are pinned in requirements.txt / requirements-dev.txt.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: requires a running PostgreSQL instance (docker compose up -d db)",
+]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "S"]
+ignore = ["S101"]  # assert is fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+# S608: tests build SQL from fixed schema/table constants only.
+"tests/**" = ["S105", "S106", "S608"]
+# The host watchdog runs on the host's Python 3.9 (no py312 upgrades) and
+# calls podman by name with fixed arguments.
+"deploy/watchdog/**" = ["UP", "S603", "S607"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+packages = ["app", "scripts", "tests"]
+
+[[tool.mypy.overrides]]
+# APScheduler 3 ships no type information.
+module = ["apscheduler", "apscheduler.*"]
+ignore_missing_imports = true

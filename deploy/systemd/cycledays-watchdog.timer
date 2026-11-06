@@ -1,0 +1,12 @@
+# Runs the CycleDays watchdog 5 minutes after boot, then every 10 minutes.
+[Unit]
+Description=Run the CycleDays watchdog every 10 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+AccuracySec=1min
+Persistent=false
+
+[Install]
+WantedBy=timers.target
